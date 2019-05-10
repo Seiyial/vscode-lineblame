@@ -5,22 +5,24 @@ const getDecorationType = require('./decoration.js');
 const { isGitRepo } = require('./utils.js');
 
 const defaultWorkspaceFolder = { uri: { path: workspace.rootPath } };
-let disposableDecorationType = '';
+let disposableDecorationType = null;
 let activeTextEditorChanged = false;
+let textDocumentInputing = false;
+let editorCache = null;
 
 function activate(context) {
     window.onDidChangeTextEditorSelection(event => {
-        const editor = event.textEditor;
+        const editor = editorCache = event.textEditor;
+        if (textDocumentInputing) {
+            // 正在输入
+            return;
+        }
         if (activeTextEditorChanged) {
             // 切换文件
             activeTextEditorChanged = false;
             return;
         }
-        oldEditorId = editor._id;
-        if (disposableDecorationType) {
-            // 清空上一次的 decoration
-            editor.setDecorations(disposableDecorationType, []);
-        }
+        disposeDecoration();
         const document = editor.document;
         const filePath = document.uri.path;
         const lineCount = document.lineCount - 1;
@@ -29,18 +31,21 @@ function activate(context) {
         if (!isGitRepo(rootPath)) {
             return;
         }
-        const activeInfo = editor.selection.active;
-        const line = activeInfo.line;
-        const character = activeInfo.character;
+        const selection = editor.selection;
+        if (
+            selection.start.line !== selection.end.line
+            ||
+            selection.start.character !== selection.end.character
+        ) {
+            // 选中多个字符
+            return;
+        }
+        const line = selection.active.line;
         if (line === lineCount) {
             // 超出最大行
             return;
         }
-        const characterCount = editor.document.lineAt(line).text.length;
-        if (character < characterCount) {
-            // 焦点在文本内部
-            return;
-        }
+        const character = editor.document.lineAt(line).text.length;
         const startPos = new Position(line, character);
         const endPos = new Position(line, character);
         const range = new Range(startPos, endPos);
@@ -57,11 +62,24 @@ function activate(context) {
 
     window.onDidChangeActiveTextEditor(editor => {
         activeTextEditorChanged = true;
-        if (editor && disposableDecorationType) {
-            // 清空上一次的 decoration
-            editor.setDecorations(disposableDecorationType, []);
-        }
+        disposeDecoration();
     });
+
+    workspace.onDidChangeTextDocument(() => {
+        textDocumentInputing = true;
+        disposeDecoration();
+    });
+
+    workspace.onDidSaveTextDocument(() => {
+        textDocumentInputing = false;
+    });
+}
+
+function disposeDecoration() {
+    if (editorCache && disposableDecorationType) {
+        // 清空上一次的 decoration
+        editorCache.setDecorations(disposableDecorationType, []);
+    }
 }
 
 module.exports = { activate };
