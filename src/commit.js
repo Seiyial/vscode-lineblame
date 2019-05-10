@@ -41,22 +41,18 @@ async function getCommitInfo({ rootPath, filePath, line }) {
             const commitInfo = `${committer} • ${time} • ${info}`;
             resolve(commitInfo);
         });
-        cli.stderr.on('data', data => reject(`[LineBlame] ${data.toString()}.`));
-        cli.on('close', code => code !== 0 && reject(`[LineBlame] Git process exited with code ${code}.`));
     });
     return stdmsg;
 }
 
 async function getGitUserName() {
-    const stdmsg = await new Promise((resolve, reject) => {
+    const stdmsg = await new Promise(resolve => {
         const cli = spawn('git', ['config', 'user.name']);
         cli.stdout.on('data', data => {
             const s = data.toString();
             // 去掉一个 \n
             resolve(s.slice(0, s.length - 1));
         });
-        cli.stderr.on('data', data => reject(`[LineBlame] ${data.toString()}.`));
-        cli.on('close', code => code !== 0 && reject(`[LineBlame] Git process exited with code ${code}.`));
     });
     return stdmsg;
 }
