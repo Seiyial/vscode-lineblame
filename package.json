@@ -2,14 +2,14 @@
     "name": "lineblame",
     "displayName": "LineBlame",
     "description": "Bring Git blame annotations to line of file in VS Code",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "homepage": "https://github.com/baliscript/vscode-lineblame/blob/master/README.md",
     "repository": {
         "type": "git",
         "url": "https://github.com/baliscript/vscode-lineblame.git"
     },
     "license": "MIT",
-    "publisher": "veedrin",
+    "publisher": "baliscript",
     "engines": {
         "vscode": "^1.30.0"
     },

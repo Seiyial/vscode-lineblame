@@ -6,10 +6,17 @@ const { isGitRepo } = require('./utils.js');
 
 const defaultWorkspaceFolder = { uri: { path: workspace.rootPath } };
 let disposableDecorationType = '';
+let activeTextEditorChanged = false;
 
 function activate(context) {
-    window.onDidChangeTextEditorSelection(e => {
-        const editor = e.textEditor;
+    window.onDidChangeTextEditorSelection(event => {
+        const editor = event.textEditor;
+        if (activeTextEditorChanged) {
+            // 切换文件
+            activeTextEditorChanged = false;
+            return;
+        }
+        oldEditorId = editor._id;
         if (disposableDecorationType) {
             // 清空上一次的 decoration
             editor.setDecorations(disposableDecorationType, []);
@@ -23,16 +30,21 @@ function activate(context) {
             return;
         }
         const activeInfo = editor.selection.active;
-        const l = activeInfo.line;
-        const s = activeInfo.character;
-        if (l === lineCount) {
+        const line = activeInfo.line;
+        const character = activeInfo.character;
+        if (line === lineCount) {
             // 超出最大行
             return;
         }
-        const startPos = new Position(l, s);
-        const endPos = new Position(l, s);
+        const characterCount = editor.document.lineAt(line).text.length;
+        if (character < characterCount) {
+            // 焦点在文本内部
+            return;
+        }
+        const startPos = new Position(line, character);
+        const endPos = new Position(line, character);
         const range = new Range(startPos, endPos);
-        const commitPromise = getCommitInfo({ rootPath, filePath, line: l + 1 });
+        const commitPromise = getCommitInfo({ rootPath, filePath, line: line + 1 });
         commitPromise.then(commit => {
             const decorationType = getDecorationType(commit);
             disposableDecorationType = decorationType;
@@ -42,6 +54,14 @@ function activate(context) {
             window.showWarningMessage(err);
         });
     }, null, context.subscriptions);
+
+    window.onDidChangeActiveTextEditor(editor => {
+        activeTextEditorChanged = true;
+        if (editor && disposableDecorationType) {
+            // 清空上一次的 decoration
+            editor.setDecorations(disposableDecorationType, []);
+        }
+    });
 }
 
 module.exports = { activate };
