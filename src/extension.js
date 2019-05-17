@@ -60,7 +60,7 @@ function activate(context) {
         });
     }, null, context.subscriptions);
 
-    window.onDidChangeActiveTextEditor(editor => {
+    window.onDidChangeActiveTextEditor(() => {
         activeTextEditorChanged = true;
         disposeDecoration();
     });

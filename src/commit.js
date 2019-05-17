@@ -1,6 +1,6 @@
 const { spawn } = require('child_process');
 
-const { doubleDigitFormat } = require('./utils.js');
+const { getFormattedDate } = require('./utils.js');
 
 const NOT_COMMITTED_YET = 'Not Committed Yet';
 
@@ -26,8 +26,7 @@ async function getCommitInfo({ rootPath, filePath, line }) {
             }
             const timeMatch = commit.match(/committer-time ([^\n]+)/);
             if (Array.isArray(timeMatch)) {
-                const d = new Date(Number(timeMatch[1].trim()) * 1000);
-                time = `${d.getFullYear()}-${doubleDigitFormat(d.getMonth() + 1)}-${doubleDigitFormat(d.getDate())}`;
+                time = getFormattedDate(Number(timeMatch[1].trim()) * 1000);
             } else {
                 reject('[LineBlame] committer-time not found.');
             }
