@@ -14,7 +14,7 @@ function getDecorationType(commit) {
         },
         light: {
             after: {
-                color: '#bbb',
+                color: '#a0a1a7',
             },
         },
         rangeBehavior: DecorationRangeBehavior.ClosedOpen,

@@ -5,10 +5,35 @@ const getDecorationType = require('./decoration.js');
 const { isGitRepo } = require('./utils.js');
 
 const defaultWorkspaceFolder = { uri: { path: workspace.rootPath } };
-let disposableDecorationType = null;
+let decorationTypeCache = null;
+let editorCache = null;
+let lineCache = null;
 let activeTextEditorChanged = false;
 let textDocumentInputing = false;
-let editorCache = null;
+
+function getRootPath(filePath) {
+    const workspaceFolder = workspace.workspaceFolders.filter(v => filePath.includes(v.name))[0] || defaultWorkspaceFolder;
+    const rootPath = workspaceFolder.uri.path;
+    return rootPath;
+}
+
+function crossSelection(selection) {
+    return selection.start.line !== selection.end.line;
+}
+
+function generateRange(line, character) {
+    const startPos = new Position(line, character);
+    const endPos = new Position(line, character);
+    const range = new Range(startPos, endPos);
+    return range;
+}
+
+function disposeDecoration() {
+    if (editorCache && decorationTypeCache) {
+        // 清空上一次的 decoration
+        editorCache.setDecorations(decorationTypeCache, []);
+    }
+}
 
 function activate(context) {
     window.onDidChangeTextEditorSelection(event => {
@@ -22,37 +47,39 @@ function activate(context) {
             activeTextEditorChanged = false;
             return;
         }
-        disposeDecoration();
         const document = editor.document;
         const filePath = document.uri.path;
-        const lineCount = document.lineCount - 1;
-        const workspaceFolder = workspace.workspaceFolders.filter(v => filePath.includes(v.name))[0] || defaultWorkspaceFolder;
-        const rootPath = workspaceFolder.uri.path;
+        const rootPath = getRootPath(filePath);
         if (!isGitRepo(rootPath)) {
+            disposeDecoration();
             return;
         }
         const selection = editor.selection;
-        if (
-            selection.start.line !== selection.end.line
-            ||
-            selection.start.character !== selection.end.character
-        ) {
+        if (crossSelection(selection)) {
             // 选中多个字符
+            disposeDecoration();
             return;
         }
         const line = selection.active.line;
+        const lineCount = document.lineCount - 1;
         if (line === lineCount) {
             // 超出最大行
+            disposeDecoration();
             return;
         }
-        const character = editor.document.lineAt(line).text.length;
-        const startPos = new Position(line, character);
-        const endPos = new Position(line, character);
-        const range = new Range(startPos, endPos);
+        if (line === lineCache) {
+            // 同一行触发事件
+            return;
+        } else {
+            disposeDecoration();
+            lineCache = line;
+        }
         const commitPromise = getCommitInfo({ rootPath, filePath, line: line + 1 });
         commitPromise.then(commit => {
             const decorationType = getDecorationType(commit);
-            disposableDecorationType = decorationType;
+            decorationTypeCache = decorationType;
+            const character = editor.document.lineAt(line).text.length;
+            const range = generateRange(line, character);
             editor.setDecorations(decorationType, [range]);
         });
         commitPromise.catch(err => {
@@ -73,13 +100,6 @@ function activate(context) {
     workspace.onDidSaveTextDocument(() => {
         textDocumentInputing = false;
     });
-}
-
-function disposeDecoration() {
-    if (editorCache && disposableDecorationType) {
-        // 清空上一次的 decoration
-        editorCache.setDecorations(disposableDecorationType, []);
-    }
 }
 
 module.exports = { activate };
