@@ -11,8 +11,8 @@ let lineCache = null;
 let activeTextEditorChanged = false;
 let textDocumentInputing = false;
 
-function getRootPath(filePath) {
-    const workspaceFolder = workspace.workspaceFolders.filter(v => filePath.includes(v.name))[0] || defaultWorkspaceFolder;
+function getRootPath(uri) {
+    const workspaceFolder = workspace.getWorkspaceFolder(uri) || defaultWorkspaceFolder;
     const rootPath = workspaceFolder.uri.path;
     return rootPath;
 }
@@ -48,8 +48,7 @@ function activate(context) {
             return;
         }
         const document = editor.document;
-        const filePath = document.uri.path;
-        const rootPath = getRootPath(filePath);
+        const rootPath = getRootPath(document.uri);
         if (!isGitRepo(rootPath)) {
             disposeDecoration();
             return;
@@ -74,7 +73,7 @@ function activate(context) {
             disposeDecoration();
             lineCache = line;
         }
-        const commitPromise = getCommitInfo({ rootPath, filePath, line: line + 1 });
+        const commitPromise = getCommitInfo({ rootPath, filePath: document.uri.path, line: line + 1 });
         commitPromise.then(commit => {
             const decorationType = getDecorationType(commit);
             decorationTypeCache = decorationType;
