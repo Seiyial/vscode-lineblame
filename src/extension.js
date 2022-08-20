@@ -2,9 +2,8 @@ const { window, workspace, Position, Range } = require('vscode');
 
 const getCommitInfo = require('./commit.js');
 const getDecorationType = require('./decoration.js');
-const { isGitRepo } = require('./utils.js');
+const { isGitRepo, correctFilePath } = require('./utils.js');
 
-const defaultWorkspaceFolder = { uri: { path: workspace.rootPath } };
 let decorationTypeCache = [];
 let editorCache = null;
 let lineCache = null;
@@ -12,9 +11,11 @@ let activeTextEditorChanged = false;
 let textDocumentInputing = false;
 
 function getRootPath(uri) {
-    const workspaceFolder = workspace.getWorkspaceFolder(uri) || defaultWorkspaceFolder;
-    const rootPath = workspaceFolder.uri.path;
-    return rootPath;
+    const workspaceFolder = workspace.getWorkspaceFolder(uri);
+    if (workspaceFolder) {
+        return correctFilePath(workspaceFolder.uri.path)
+    }
+    return null;
 }
 
 function crossSelection(selection) {
@@ -53,7 +54,7 @@ function activate(context) {
         }
         const document = editor.document;
         const rootPath = getRootPath(document.uri);
-        if (!isGitRepo(rootPath)) {
+        if (rootPath && !isGitRepo(rootPath)) {
             disposeDecoration();
             return;
         }
@@ -77,7 +78,7 @@ function activate(context) {
             disposeDecoration();
             lineCache = line;
         }
-        const commitPromise = getCommitInfo({ rootPath, filePath: document.uri.path, line: line + 1 });
+        const commitPromise = getCommitInfo({ rootPath, filePath: correctFilePath(document.uri.path), line: line + 1 });
         commitPromise.then(commit => {
             const decorationType = getDecorationType(commit);
             decorationTypeCache.push(decorationType);

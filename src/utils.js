@@ -30,4 +30,15 @@ function getFormattedDate(timestamp) {
     }
 }
 
-module.exports = { isGitRepo, getFormattedDate };
+function correctFilePath(filePath) {
+    if (process.platform == 'win32') {
+        if (filePath.startsWith('/')) {
+            return filePath.substring(1).replaceAll('/', '\\');
+        } else if (filePath.includes('/')) {
+            return filePath.replaceAll('/', '\\');
+        }
+    }
+    return filePath;
+}
+
+module.exports = { isGitRepo, getFormattedDate, correctFilePath };
