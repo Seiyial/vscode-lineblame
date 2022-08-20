@@ -8,6 +8,7 @@ let editorCache = null;
 let lineCache = null;
 let activeTextEditorChanged = false;
 let textDocumentInputing = false;
+let blameController = null;
 
 function crossSelection(selection) {
     return selection.start.line !== selection.end.line;
@@ -64,14 +65,23 @@ function activate(context) {
             disposeDecoration();
             lineCache = line;
         }
-        const commitPromise = getCommitInfo({ filePath: correctFilePath(document.uri.path), line: line + 1 });
+        if (blameController) {
+            blameController.abort();
+        }
+        blameController = new AbortController();
+        const singal = blameController.signal;
+        const commitPromise = getCommitInfo({ signal: singal, filePath: correctFilePath(document.uri.path), line: line + 1 });
         commitPromise.then(commit => {
-            const decorationType = getDecorationType(commit);
-            decorationTypeCache.push(decorationType);
-            const character = editor.document.lineAt(line).text.length;
-            const range = generateRange(line, character);
-            editor.setDecorations(decorationType, [range]);
-            disposeDecoration(true)
+            if (!singal.aborted) {
+                const decorationType = getDecorationType(commit);
+                const character = editor.document.lineAt(line).text.length;
+                const range = generateRange(line, character);
+                if (!singal.aborted) {
+                    editor.setDecorations(decorationType, [range]);
+                    decorationTypeCache.push(decorationType);
+                    disposeDecoration(true)
+                }
+            }
         });
         commitPromise.catch(err => {
             if (err) {

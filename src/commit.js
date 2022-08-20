@@ -6,10 +6,16 @@ const NOT_COMMITTED_YET = 'Not Committed Yet';
 let preFilePath = null;
 let preRootPath = null;
 
-async function getCommitInfo({ filePath, line }) {
+async function getCommitInfo({ signal, filePath, line }) {
+    if (signal.aborted) {
+        return Promise.reject('');
+    }
     if (filePath != preFilePath) {
         preRootPath = correctFilePath(await getGitRootDir(filePath));
         preFilePath = filePath;
+    }
+    if (signal.aborted) {
+        return Promise.reject('');
     }
     const rootPath = preRootPath;
     const stdmsg = await new Promise((resolve, reject) => {
@@ -18,6 +24,9 @@ async function getCommitInfo({ filePath, line }) {
         }
         const cli = spawn(getGitCommand(), ['blame', '-pL', `${line},${line}`, filePath.substring(rootPath.length + 1)], { cwd: rootPath, });
         cli.stdout.on('data', data => {
+            if (signal.aborted) {
+                reject('');
+            }
             const commit = data.toString();
             let committer, time, info, committed = true;
             const committerMatch = commit.match(/committer ([^\n]+)/);
