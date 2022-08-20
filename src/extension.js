@@ -1,22 +1,13 @@
 const { window, workspace, Position, Range } = require('vscode');
-
 const getCommitInfo = require('./commit.js');
 const getDecorationType = require('./decoration.js');
-const { isGitRepo, correctFilePath } = require('./utils.js');
+const { correctFilePath } = require('./utils.js');
 
 let decorationTypeCache = [];
 let editorCache = null;
 let lineCache = null;
 let activeTextEditorChanged = false;
 let textDocumentInputing = false;
-
-function getRootPath(uri) {
-    const workspaceFolder = workspace.getWorkspaceFolder(uri);
-    if (workspaceFolder) {
-        return correctFilePath(workspaceFolder.uri.path)
-    }
-    return null;
-}
 
 function crossSelection(selection) {
     return selection.start.line !== selection.end.line;
@@ -53,11 +44,6 @@ function activate(context) {
             return;
         }
         const document = editor.document;
-        const rootPath = getRootPath(document.uri);
-        if (rootPath && !isGitRepo(rootPath)) {
-            disposeDecoration();
-            return;
-        }
         const selection = editor.selection;
         if (crossSelection(selection)) {
             // 选中多个字符
@@ -78,7 +64,7 @@ function activate(context) {
             disposeDecoration();
             lineCache = line;
         }
-        const commitPromise = getCommitInfo({ rootPath, filePath: correctFilePath(document.uri.path), line: line + 1 });
+        const commitPromise = getCommitInfo({ filePath: correctFilePath(document.uri.path), line: line + 1 });
         commitPromise.then(commit => {
             const decorationType = getDecorationType(commit);
             decorationTypeCache.push(decorationType);
@@ -88,7 +74,9 @@ function activate(context) {
             disposeDecoration(true)
         });
         commitPromise.catch(err => {
-            window.showWarningMessage(err);
+            if (err) {
+                window.showWarningMessage(err);
+            }
         });
     }, null, context.subscriptions);
 
@@ -105,6 +93,8 @@ function activate(context) {
     workspace.onDidSaveTextDocument(() => {
         textDocumentInputing = false;
     });
+
+    window.showInformationMessage("LineBlame is active.")
 }
 
 module.exports = { activate };

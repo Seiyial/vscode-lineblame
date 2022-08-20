@@ -6,10 +6,6 @@ const packageJson = require('../package.json');
 
 const dateFormatEnum = packageJson.contributes.configuration.properties['lineblame.dateFormat'].enum;
 
-function isGitRepo(rootPath) {
-    return fs.existsSync(path.join(rootPath, '.git'));
-}
-
 function doubleDigitFormat(n) {
     return n < 10 ? `0${n}` : n;
 }
@@ -31,7 +27,7 @@ function getFormattedDate(timestamp) {
 }
 
 function correctFilePath(filePath) {
-    if (process.platform == 'win32') {
+    if (filePath && process.platform == 'win32') {
         if (filePath.startsWith('/')) {
             return filePath.substring(1).replaceAll('/', '\\');
         } else if (filePath.includes('/')) {
@@ -41,4 +37,4 @@ function correctFilePath(filePath) {
     return filePath;
 }
 
-module.exports = { isGitRepo, getFormattedDate, correctFilePath };
+module.exports = { getFormattedDate, correctFilePath };
