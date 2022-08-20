@@ -5,7 +5,7 @@ const getDecorationType = require('./decoration.js');
 const { isGitRepo } = require('./utils.js');
 
 const defaultWorkspaceFolder = { uri: { path: workspace.rootPath } };
-let decorationTypeCache = null;
+let decorationTypeCache = [];
 let editorCache = null;
 let lineCache = null;
 let activeTextEditorChanged = false;
@@ -28,10 +28,14 @@ function generateRange(line, character) {
     return range;
 }
 
-function disposeDecoration() {
-    if (editorCache && decorationTypeCache) {
-        // 清空上一次的 decoration
-        editorCache.setDecorations(decorationTypeCache, []);
+function disposeDecoration(keepLastDisposeDecoration=false) {
+    if (editorCache) {
+        while (true) {
+            if (decorationTypeCache.length == 0 || keepLastDisposeDecoration && decorationTypeCache.length == 1) {
+                break;
+            }
+            editorCache.setDecorations(decorationTypeCache.shift(), []);
+        }
     }
 }
 
@@ -76,10 +80,11 @@ function activate(context) {
         const commitPromise = getCommitInfo({ rootPath, filePath: document.uri.path, line: line + 1 });
         commitPromise.then(commit => {
             const decorationType = getDecorationType(commit);
-            decorationTypeCache = decorationType;
+            decorationTypeCache.push(decorationType);
             const character = editor.document.lineAt(line).text.length;
             const range = generateRange(line, character);
             editor.setDecorations(decorationType, [range]);
+            disposeDecoration(true)
         });
         commitPromise.catch(err => {
             window.showWarningMessage(err);
