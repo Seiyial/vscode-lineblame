@@ -3,6 +3,7 @@ const { window, extensions } = require('vscode');
 const { getFormattedDate, correctFilePath } = require('./utils.js');
 const { dirname } = require('path');
 const NOT_COMMITTED_YET = 'Not Committed Yet';
+const GIT_COMMAND = getGitCommand();
 let preFilePath = null;
 let preRootPath = null;
 
@@ -22,7 +23,7 @@ async function getCommitInfo({ signal, filePath, line }) {
         if (!rootPath) {
             reject('')
         }
-        const cli = spawn(getGitCommand(), ['blame', '-pL', `${line},${line}`, filePath.substring(rootPath.length + 1)], { cwd: rootPath, });
+        const cli = spawn(GIT_COMMAND, ['blame', '-pL', `${line},${line}`, filePath.substring(rootPath.length + 1)], { cwd: rootPath, });
         cli.stdout.on('data', data => {
             if (signal.aborted) {
                 reject('');
@@ -66,7 +67,7 @@ async function getCommitInfo({ signal, filePath, line }) {
 
 async function getGitRootDir(filePath) {
     const stdmsg = await new Promise(resolve => {
-        const cli = spawn(getGitCommand(), ['rev-parse', '--show-toplevel'], { cwd: dirname(filePath), });
+        const cli = spawn(GIT_COMMAND, ['rev-parse', '--show-toplevel'], { cwd: dirname(filePath), });
         cli.stdout.on('data', data => {
             const s = data.toString();
             // 去掉一个 \n
@@ -80,9 +81,13 @@ async function getGitRootDir(filePath) {
 }
 
 function getGitCommand() {
-    const vscodeGit = extensions.getExtension('vscode.git');
-    if (vscodeGit?.exports.enabled) {
-        return vscodeGit.exports.getAPI(1).git.path;
+    try {
+        const vscodeGit = extensions.getExtension('vscode.git');
+        if (vscodeGit?.exports.enabled) {
+            return vscodeGit.exports.getAPI(1).git.path;
+        }
+    } catch(err) {
+        // do nothing
     }
     return 'git';
 }

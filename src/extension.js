@@ -42,7 +42,7 @@ function activate(context) {
         if (activeTextEditorChanged) {
             // 切换文件
             activeTextEditorChanged = false;
-            return;
+            // return;
         }
         const document = editor.document;
         const selection = editor.selection;
