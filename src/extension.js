@@ -46,18 +46,18 @@ function activate(context) {
         }
         const document = editor.document;
         const selection = editor.selection;
-        if (crossSelection(selection)) {
-            // 选中多个字符
-            disposeDecoration();
-            return;
-        }
+        // if (crossSelection(selection)) {
+        //     // 选中多个字符
+        //     disposeDecoration();
+        //     return;
+        // }
         const line = selection.active.line;
-        const lineCount = document.lineCount - 1;
-        if (line === lineCount) {
-            // 超出最大行
-            disposeDecoration();
-            return;
-        }
+        // const lineCount = document.lineCount - 1;
+        // if (line === lineCount) {
+        //     // 超出最大行
+        //     disposeDecoration();
+        //     return;
+        // }
         if (line === lineCache) {
             // 同一行触发事件
             return;
