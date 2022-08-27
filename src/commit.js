@@ -7,7 +7,7 @@ const GIT_COMMAND = getGitCommand();
 let preFilePath = null;
 let preRootPath = null;
 
-async function getCommitInfo({ signal, filePath, line }) {
+async function getCommitInfo({ signal, filePath, line, text }) {
     if (signal.aborted) {
         return Promise.reject('');
     }
@@ -21,14 +21,21 @@ async function getCommitInfo({ signal, filePath, line }) {
     const rootPath = preRootPath;
     const stdmsg = await new Promise((resolve, reject) => {
         if (!rootPath) {
-            reject('')
+            reject('');
+            return;
         }
         const cli = spawn(GIT_COMMAND, ['blame', '-pL', `${line},${line}`, filePath.substring(rootPath.length + 1)], { cwd: rootPath, });
         cli.stdout.on('data', data => {
             if (signal.aborted) {
                 reject('');
+                return;
             }
             const commit = data.toString();
+            blameInfoArray = commit.split(/\r?\n/);
+            if (blameInfoArray[blameInfoArray.length - 2] != `\t${text}`) {
+                resolve(`You • ${getFormattedDate(Date.now())} • [Not Saved Yet]`);
+                return;
+            }
             let committer, time, info, committed = true;
             const committerMatch = commit.match(/committer ([^\n]+)/);
             if (Array.isArray(committerMatch)) {
@@ -41,12 +48,14 @@ async function getCommitInfo({ signal, filePath, line }) {
                 }
             } else {
                 reject('[LineBlame] committer not found.');
+                return;
             }
             const timeMatch = commit.match(/committer-time ([^\n]+)/);
             if (Array.isArray(timeMatch)) {
                 time = getFormattedDate(Number(timeMatch[1].trim()) * 1000);
             } else {
                 reject('[LineBlame] committer-time not found.');
+                return;
             }
             const infoMatch = commit.match(/summary ([^\n]+)/);
             if (Array.isArray(infoMatch)) {
@@ -54,6 +63,7 @@ async function getCommitInfo({ signal, filePath, line }) {
                 info = committed ? v : `[${NOT_COMMITTED_YET}]`;
             } else {
                 reject('[LineBlame] commit-message not found.');
+                return;
             }
             const commitInfo = `${committer} • ${time} • ${info}`;
             resolve(commitInfo);
@@ -70,7 +80,6 @@ async function getGitRootDir(filePath) {
         const cli = spawn(GIT_COMMAND, ['rev-parse', '--show-toplevel'], { cwd: dirname(filePath), });
         cli.stdout.on('data', data => {
             const s = data.toString();
-            // 去掉一个 \n
             resolve(s.slice(0, s.length - 1));
         });
         cli.stderr.on('data', data => {
