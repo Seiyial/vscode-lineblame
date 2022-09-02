@@ -1,25 +1,12 @@
 const { window, workspace, Position, Range } = require('vscode');
-
 const getCommitInfo = require('./commit.js');
 const getDecorationType = require('./decoration.js');
-const { isGitRepo } = require('./utils.js');
+const { correctFilePath } = require('./utils.js');
 
-const defaultWorkspaceFolder = { uri: { path: workspace.rootPath } };
-let decorationTypeCache = null;
+let decorationTypeCache = [];
 let editorCache = null;
 let lineCache = null;
-let activeTextEditorChanged = false;
-let textDocumentInputing = false;
-
-function getRootPath(uri) {
-    const workspaceFolder = workspace.getWorkspaceFolder(uri) || defaultWorkspaceFolder;
-    const rootPath = workspaceFolder.uri.path;
-    return rootPath;
-}
-
-function crossSelection(selection) {
-    return selection.start.line !== selection.end.line;
-}
+let blameController = null;
 
 function generateRange(line, character) {
     const startPos = new Position(line, character);
@@ -28,76 +15,77 @@ function generateRange(line, character) {
     return range;
 }
 
-function disposeDecoration() {
-    if (editorCache && decorationTypeCache) {
-        // 清空上一次的 decoration
-        editorCache.setDecorations(decorationTypeCache, []);
+function disposeDecoration(keepLastDisposeDecoration=false) {
+    if (editorCache) {
+        while (true) {
+            if (decorationTypeCache.length == 0 || keepLastDisposeDecoration && decorationTypeCache.length == 1) {
+                break;
+            }
+            editorCache.setDecorations(decorationTypeCache.shift(), []);
+        }
     }
+}
+
+function blameActiveLine(editor, refresh=false) {
+    editorCache = editor;
+    const document = editor.document;
+    const line = editor.selection.active.line;
+    const text = document.lineAt(line).text;
+
+    if (line === lineCache && !refresh) {
+        return;
+    } else {
+        disposeDecoration();
+        lineCache = line;
+    }
+    if (blameController) {
+        blameController.abort();
+    }
+    blameController = new AbortController();
+    const singal = blameController.signal;
+    const commitPromise = getCommitInfo({ signal: singal, filePath: correctFilePath(document.uri.path), line: line + 1, text: text});
+    commitPromise.then(commit => {
+        if (!singal.aborted) {
+            const decorationType = getDecorationType(commit);
+            const character = editor.document.lineAt(line).text.length;
+            const range = generateRange(line, character);
+            if (!singal.aborted) {
+                editor.setDecorations(decorationType, [range]);
+                decorationTypeCache.push(decorationType);
+                disposeDecoration(true);
+            }
+        }
+    });
+    commitPromise.catch(err => {
+        if (err) {
+            window.showWarningMessage(err);
+        }
+    });
 }
 
 function activate(context) {
     window.onDidChangeTextEditorSelection(event => {
-        const editor = editorCache = event.textEditor;
-        if (textDocumentInputing) {
-            // 正在输入
-            return;
-        }
-        if (activeTextEditorChanged) {
-            // 切换文件
-            activeTextEditorChanged = false;
-            return;
-        }
-        const document = editor.document;
-        const rootPath = getRootPath(document.uri);
-        if (!isGitRepo(rootPath)) {
-            disposeDecoration();
-            return;
-        }
-        const selection = editor.selection;
-        if (crossSelection(selection)) {
-            // 选中多个字符
-            disposeDecoration();
-            return;
-        }
-        const line = selection.active.line;
-        const lineCount = document.lineCount - 1;
-        if (line === lineCount) {
-            // 超出最大行
-            disposeDecoration();
-            return;
-        }
-        if (line === lineCache) {
-            // 同一行触发事件
-            return;
-        } else {
-            disposeDecoration();
-            lineCache = line;
-        }
-        const commitPromise = getCommitInfo({ rootPath, filePath: document.uri.path, line: line + 1 });
-        commitPromise.then(commit => {
-            const decorationType = getDecorationType(commit);
-            decorationTypeCache = decorationType;
-            const character = editor.document.lineAt(line).text.length;
-            const range = generateRange(line, character);
-            editor.setDecorations(decorationType, [range]);
-        });
-        commitPromise.catch(err => {
-            window.showWarningMessage(err);
-        });
+        const editor = event.textEditor;
+        blameActiveLine(editor);
     }, null, context.subscriptions);
 
     window.onDidChangeActiveTextEditor(() => {
-        activeTextEditorChanged = true;
         disposeDecoration();
     });
 
     workspace.onDidChangeTextDocument(() => {
-        textDocumentInputing = true;
         disposeDecoration();
     });
 
     workspace.onDidSaveTextDocument(() => {
-        textDocumentInputing = false;
+        const editor = window.activeTextEditor;
+        if (editor) {
+            blameActiveLine(editor, true);
+        }
+    });
+    
+    workspace.onDidCloseTextDocument(() => {
+        decorationTypeCache.length = 0;
     });
 }
 
